@@ -9,18 +9,27 @@ import requests
 
 app = FastAPI()
 
-# Google Drive File ID
+# Google Drive file info
 file_id = "17kbJOY8glURd0iNAoESlokg6i2FJPjU4"
 file_name = "xception.keras"
 drive_url = f"https://drive.google.com/uc?export=download&id={file_id}"
 
 # Download model if not exists
-if not os.path.exists(file_name):
-    print("🔽 Downloading model from Google Drive...")
-    response = requests.get(drive_url)
-    with open(file_name, "wb") as f:
-        f.write(response.content)
-    print("✅ Model downloaded.")
+def download_model():
+    if not os.path.exists(file_name):
+        print("🔽 Downloading model from Google Drive...")
+        try:
+            with requests.get(drive_url, stream=True) as response:
+                response.raise_for_status()
+                with open(file_name, "wb") as f:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        f.write(chunk)
+            print("✅ Model downloaded successfully.")
+        except Exception as e:
+            print("❌ Failed to download model:", e)
+            raise RuntimeError("Model download failed.")
+
+download_model()
 
 # Load model
 try:
@@ -28,6 +37,7 @@ try:
     print("✅ Model loaded successfully.")
 except Exception as e:
     print("❌ Model loading failed:", e)
+    raise RuntimeError("Model loading failed.")
 
 image_size = 256
 labels = ["Not Melanoma", "Melanoma"]
@@ -53,5 +63,5 @@ async def predict(file: UploadFile = File(...)):
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"error": str(e)}
+            content={"error": f"Prediction failed: {str(e)}"}
         )
